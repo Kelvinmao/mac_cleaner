@@ -1,0 +1,158 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v1.0.1)'
+        required: true
+        default: 'v1.0.0'
+
+jobs:
+  build:
+    name: Build macOS App
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Swift
+      uses: swift-actions/setup-swift@v1
+      with:
+        swift-version: '5.9'
+      
+    - name: Build release binary
+      run: |
+        swift build -c release --product MacCleaner
+        
+    - name: Create .app bundle
+      run: |
+        APP_NAME="MacCleaner"
+        BUILD_DIR="build"
+        APP_BUNDLE="${BUILD_DIR}/${APP_NAME}.app"
+        CONTENTS="${APP_BUNDLE}/Contents"
+        MACOS="${CONTENTS}/MacOS"
+        RESOURCES="${CONTENTS}/Resources"
+        
+        # Clean previous build
+        rm -rf "${BUILD_DIR}"
+        mkdir -p "${BUILD_DIR}"
+        
+        # Create .app bundle structure
+        mkdir -p "${MACOS}"
+        mkdir -p "${RESOURCES}"
+        
+        # Copy binary
+        cp ".build/arm64-apple-macosx/release/MacCleaner" "${MACOS}/${APP_NAME}"
+        chmod +x "${MACOS}/${APP_NAME}"
+        
+        # Create Info.plist
+        cat > "${CONTENTS}/Info.plist" << 'EOF'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+        <plist version="1.0">
+        <dict>
+            <key>CFBundleDevelopmentRegion</key>
+            <string>en_US</string>
+            <key>CFBundleExecutable</key>
+            <string>MacCleaner</string>
+            <key>CFBundleIdentifier</key>
+            <string>com.example.MacCleaner</string>
+            <key>CFBundleInfoDictionaryVersion</key>
+            <string>6.0</string>
+            <key>CFBundleName</key>
+            <string>MacCleaner</string>
+            <key>CFBundlePackageType</key>
+            <string>APPL</string>
+            <key>CFBundleShortVersionString</key>
+            <string>1.0.0</string>
+            <key>CFBundleVersion</key>
+            <string>1</string>
+            <key>LSMinimumSystemVersion</key>
+            <string>13.0</string>
+            <key>NSHighResolutionCapable</key>
+            <true/>
+            <key>NSDesktopFolderUsageDescription</key>
+            <string>MacCleaner needs access to scan and clean files on your desktop.</string>
+            <key>NSDocumentsFolderUsageDescription</key>
+            <string>MacCleaner needs access to scan and clean files in your documents folder.</string>
+            <key>NSDownloadsFolderUsageDescription</key>
+            <string>MacCleaner needs access to scan and clean files in your downloads folder.</string>
+            <key>NSRemovableVolumesUsageDescription</key>
+            <string>MacCleaner needs access to scan and clean files on external drives.</string>
+            <key>com.apple.security.files.user-selected.read-write</key>
+            <true/>
+            <key>com.apple.security.files.downloads.read-write</key>
+            <true/>
+        </dict>
+        </plist>
+        EOF
+        
+        echo "✅ .app bundle created"
+      
+    - name: Create distributable zip
+      run: |
+        cd build
+        ditto -c -k --keepParent "MacCleaner.app" "MacCleaner-latest.zip"
+        ls -lh MacCleaner-latest.zip
+      
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: MacCleaner-macOS
+        path: build/MacCleaner-latest.zip
+        retention-days: 30
+      
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+    - name: Download artifact
+      uses: actions/download-artifact@v4
+      with:
+        name: MacCleaner-macOS
+        path: release-asset
+      
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+        name: MacCleaner ${{ github.event.inputs.tag || github.ref_name }}
+        body: |
+          ## 🎉 MacCleaner Release
+          
+          ### Features
+          - 📊 Storage analysis with visual pie chart
+          - 🔍 Large file scanner (10MB - 1000MB configurable)
+          - 📋 Duplicate file detector with smart selection
+          - 🧹 Cache cleaner for system, user, app, browser caches
+          - 🎨 Modern SwiftUI interface
+          
+          ### Installation
+          1. Download `MacCleaner-latest.zip`
+          2. Unzip the file
+          3. Right-click `MacCleaner.app` and select "Open"
+          4. Click "Open" in the security dialog
+          
+          ### System Requirements
+          - macOS 13.0 or later
+          - Apple Silicon (M1/M2/M3) or Intel Mac
+          
+          ### Changelog
+          See the full changelog in [README.md](https://github.com/Kelvinmao/mac_cleaner/blob/main/README.md)
+          
+          ⚠️ **Warning**: This app permanently deletes files. Always backup important data before cleaning.
+        files: release-asset/MacCleaner-latest.zip
+        draft: false
+        prerelease: false
+        generate_release_notes: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

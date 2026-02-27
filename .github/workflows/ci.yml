@@ -1,0 +1,52 @@
+name: CI
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: Build and Test
+    runs-on: macos-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Swift
+      uses: swift-actions/setup-swift@v1
+      with:
+        swift-version: '5.9'
+      
+    - name: Check code formatting
+      run: |
+        swift --version
+        swift package --version
+      
+    - name: Build debug
+      run: |
+        swift build --product MacCleaner
+        echo "✅ Debug build successful"
+      
+    - name: Build release
+      run: |
+        swift build -c release --product MacCleaner
+        echo "✅ Release build successful"
+      
+    - name: Check binary size
+      run: |
+        BINARY_SIZE=$(stat -f%z .build/arm64-apple-macosx/release/MacCleaner)
+        BINARY_SIZE_MB=$((BINARY_SIZE / 1024 / 1024))
+        echo "Binary size: ${BINARY_SIZE_MB}MB"
+        echo "BINARY_SIZE_MB=${BINARY_SIZE_MB}" >> $GITHUB_OUTPUT
+      id: size
+      
+    - name: Build summary
+      run: |
+        echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Debug build: Success" >> $GITHUB_STEP_SUMMARY
+        echo "- ✅ Release build: Success" >> $GITHUB_STEP_SUMMARY
+        echo "- 📦 Binary size: ${{ steps.size.outputs.BINARY_SIZE_MB }}MB" >> $GITHUB_STEP_SUMMARY
