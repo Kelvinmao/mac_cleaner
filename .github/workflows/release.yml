@@ -14,7 +14,7 @@ on:
 jobs:
   build:
     name: Build macOS App
-    runs-on: macos-latest
+    runs-on: macos-13
     
     steps:
     - name: Checkout code
@@ -23,7 +23,7 @@ jobs:
     - name: Install Swift
       uses: swift-actions/setup-swift@v1
       with:
-        swift-version: '5.9'
+        swift-version: '5.9.2'
       
     - name: Build release binary
       run: |
