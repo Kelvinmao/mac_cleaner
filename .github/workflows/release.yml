@@ -100,11 +100,19 @@ jobs:
         ditto -c -k --keepParent "MacCleaner.app" "MacCleaner-latest.zip"
         ls -lh MacCleaner-latest.zip
       
-    - name: Upload artifact
+    - name: Copy standalone executable
+      run: |
+        cp ".build/arm64-apple-macosx/release/MacCleaner" "build/MacCleaner"
+        chmod +x "build/MacCleaner"
+        ls -lh build/MacCleaner
+      
+    - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: MacCleaner-macOS
-        path: build/MacCleaner-latest.zip
+        path: |
+          build/MacCleaner-latest.zip
+          build/MacCleaner
         retention-days: 30
       
   release:
@@ -115,11 +123,15 @@ jobs:
       contents: write
     
     steps:
-    - name: Download artifact
+    - name: Download artifacts
       uses: actions/download-artifact@v4
       with:
         name: MacCleaner-macOS
         path: release-asset
+      
+    - name: Display files
+      run: |
+        ls -lhR release-asset/
       
     - name: Create Release
       uses: softprops/action-gh-release@v1
@@ -137,10 +149,17 @@ jobs:
           - 🎨 Modern SwiftUI interface
           
           ### Installation
+          #### Option 1: MacCleaner.app (Recommended)
           1. Download `MacCleaner-latest.zip`
           2. Unzip the file
           3. Right-click `MacCleaner.app` and select "Open"
           4. Click "Open" in the security dialog
+          
+          #### Option 2: Standalone Executable
+          1. Download `MacCleaner` (executable)
+          2. Make it executable: `chmod +x MacCleaner`
+          3. Run directly: `./MacCleaner`
+          4. Or remove quarantine: `xattr -cr MacCleaner && open -a MacCleaner`
           
           ### System Requirements
           - macOS 13.0 or later
@@ -150,7 +169,9 @@ jobs:
           See the full changelog in [README.md](https://github.com/Kelvinmao/mac_cleaner/blob/main/README.md)
           
           ⚠️ **Warning**: This app permanently deletes files. Always backup important data before cleaning.
-        files: release-asset/MacCleaner-latest.zip
+        files: |
+          release-asset/MacCleaner-latest.zip
+          release-asset/MacCleaner
         draft: false
         prerelease: false
         generate_release_notes: true
